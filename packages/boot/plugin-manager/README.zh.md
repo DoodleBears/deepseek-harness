@@ -115,6 +115,8 @@ CLI 提供 `dsh plugin --profile <profile> version-exemptions`、`allow-version 
 
 -----
 
+文件系统错误（`EPERM`、`EACCES`、`EBUSY`，包括带 pnpm 前缀的错误码）归为 `permission`：文件可能正被占用或无法写入。Windows 用户应完全退出受影响 profile 的 DSH（包括托盘和后台进程），关闭监视其文件的程序，再通过该 profile 的 CLI 重试。若仍失败，请检查目录权限和安全软件日志。保留 profile 及其数据。此分类不会识别占用进程，也不会自动释放文件锁。
+
 <a id="understand-the-implementation"></a>
 ## 理解实现
 

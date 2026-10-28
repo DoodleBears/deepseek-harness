@@ -299,6 +299,10 @@ it('tells the agent the next step for each change outcome it can act on', async 
     .toBe('Tell the user to restart DSH to apply this change: the change reaches modules DSH itself loaded.')
   expect(await outcome({ changed: true, application: 'restart-required' })).toBe('Tell the user to restart DSH to apply this change.')
   expect(await outcome({ changed: false, application: 'failed', packageResult: { kind: 'build-blocked' } })).toContain('approvedBuilds')
+  const permissionStep = await outcome({ changed: false, application: 'failed', packageResult: { kind: 'permission' } })
+  expect(permissionStep).toContain('files may be in use or not writable')
+  expect(permissionStep).toContain('tray and background processes')
+  expect(permissionStep).toContain('Preserve the profile and its data')
   // A refusal code is more specific than the package manager's failure kind.
   expect(await outcome({ changed: false, application: 'failed', packageResult: { kind: 'network' }, error: { code: 'stale-approval' } }))
     .toContain('without approvedBuilds')

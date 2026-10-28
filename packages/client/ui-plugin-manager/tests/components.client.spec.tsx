@@ -2038,6 +2038,9 @@ describe('PluginManagerPage', () => {
       set({ install: { ...IDLE_INSTALL, open: true, spec: 'x', phase: 'failed', failure: { reason: 'r', kind: kind as never } } })
       expect(screen.getByText(sentence)).toBeTruthy()
     }
+    set({ install: { ...IDLE_INSTALL, open: true, spec: 'dsh-boot-animation', phase: 'failed', failure: { reason: 'EPERM: operation not permitted, rename', kind: 'permission' } } })
+    expect(screen.getByText(/Files may be in use or not writable/).textContent).toContain('tray and background processes')
+    expect(screen.getByText(/Files may be in use or not writable/).textContent).toContain('Keep the profile data')
     // A failure without a kind reads by its code, else in the Host's words; without words, or without a failure at all, generically.
     set({ install: { ...IDLE_INSTALL, open: true, spec: 'x', phase: 'failed', failure: { reason: '', code: 'not-bundle' } } })
     expect(screen.getByText(en.reasonNotBundle)).toBeTruthy()

@@ -35,7 +35,7 @@ const FAILURE_STEPS: Partial<Record<PluginInstallFailureKind, string>> = {
   'no-matching-version': 'Retry with a published version.',
   'network': 'Retry later or pass another registry.',
   'disk-full': 'Tell the user to free disk space, then retry.',
-  'permission': 'Tell the user DSH cannot write the profile directory; retry after they fix its permissions.',
+  'permission': 'Tell the user profile files may be in use or not writable. On Windows, fully quit DSH for this profile, including its tray and background processes, and close programs watching its files before retrying from the profile CLI. If it still fails, check directory permissions and security software logs. Preserve the profile and its data; do not delete it or disable security software.',
   'build-blocked': 'Ask the user whether to allow the install scripts of the packages in pendingBuilds; if they approve, retry with approvedBuilds.',
 }
 

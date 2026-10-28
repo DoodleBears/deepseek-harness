@@ -115,6 +115,8 @@ Failures: `plugin-manager/unknown-bundle` for a bundle `listBundles()` does not 
 
 -----
 
+Filesystem failures (`EPERM`, `EACCES`, `EBUSY`, including pnpm-prefixed codes) report `permission`: files may be in use or not writable. On Windows, fully quit DSH for the affected profile, including tray and background processes, and close programs watching its files before retrying through that profile's CLI. If the failure persists, check directory permissions and security software logs. Preserve the profile and its data. This classification does not identify a locking process or automatically release file locks.
+
 <a id="understand-the-implementation"></a>
 ## Understand the implementation
 
