@@ -523,6 +523,25 @@ describe('PiAiAdapter provider routing', () => {
     })
   })
 
+  it('classifies an opencode-go token-limit rejection as recoverable context overflow', async () => {
+    const server = await mockServer([{
+      status: 400,
+      body: JSON.stringify({
+        type: 'invalid_request_error', code: 'invalid_request_error',
+        message: 'Upstream request failed: [invalid_request_error] Input too long: model limit 1048576 tokens, requested 1123530 tokens',
+      }),
+    }])
+    const ctx = new Context()
+    onTestFinished(() => ctx.fiber.dispose())
+    await ctx.plugin(LlmRuntime)
+    await ctx.plugin(LlmPiAi, {
+      providers: { 'opencode-go': { apiKeyEnv: 'PI_TEST_KEY', baseURL: server.url } },
+    })
+    const result = await assemble(ctx, { provider: 'opencode-go', model: 'deepseek-v4.1-flash', messages: [] })
+    expect(result.finish).toMatchObject({ kind: 'error', failure: { code: CONTEXT_WINDOW_EXCEEDED_CODE } })
+    expect(server.requests).toHaveLength(1)
+  })
+
   it('stops the SDK request when the adapter idle watchdog expires', async () => {
     const server = await mockServer([{ holdOpen: true }])
     const ctx = await harness(server.url, { streamIdleTimeoutMs: 20 })

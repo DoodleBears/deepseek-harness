@@ -126,11 +126,20 @@ describe('LlmRuntime', () => {
     expect(isContextWindowExceededError('input exceeds the model context window limit')).toBe(true)
   })
 
+  it('recognizes token-counted input limits relayed by an OpenAI-compatible gateway', () => {
+    const message = 'Upstream request failed: [invalid_request_error] Input too long: model limit 1048576 tokens, requested 1123530 tokens'
+    expect(isContextWindowExceededError(message)).toBe(true)
+    expect(isContextWindowExceededError(`400: ${JSON.stringify({ type: 'invalid_request_error', code: 'invalid_request_error', message })}`)).toBe(true)
+  })
+
   it('does not mistake unrelated input validation for context-window overflow', () => {
     expect(isContextWindowExceededError('invalid request: malformed tool arguments')).toBe(false)
     expect(isContextWindowExceededError('invalid input: temperature exceeds maximum allowed value')).toBe(false)
     expect(isContextWindowExceededError('input exceeds maximum allowed value')).toBe(false)
     expect(isContextWindowExceededError('context window size must be positive')).toBe(false)
+    expect(isContextWindowExceededError('Input too long: model limit 100 characters, requested 120 characters')).toBe(false)
+    expect(isContextWindowExceededError('Input too long')).toBe(false)
+    expect(isContextWindowExceededError('Input too long: tool limit 100 tokens, requested 120 tokens')).toBe(false)
   })
 
   it('distinguishes exhausted account quota from transient rate limiting', () => {

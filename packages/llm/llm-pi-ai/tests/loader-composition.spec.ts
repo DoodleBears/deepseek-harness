@@ -18,6 +18,9 @@ import { recordKeyFor } from '../src/auth.ts'
 import { assemble } from './assemble.ts'
 import { closeMockServers, mockServer, textEvents } from './mock-server.ts'
 import { brandString } from '@deepseek-ai/dsh-brand'
+import { mountAgentLoopTestDependencies, mountAgentLoopTestHarness } from '@deepseek-ai/dsh-agent-loop-testkit'
+import BasicCompactionEngine from '@deepseek-ai/dsh-compaction-basic'
+import TokenMeter from '@deepseek-ai/dsh-token-meter'
 
 /** One text block, then a tool call truncated by the output-token ceiling. */
 const truncatedToolCallEvents = [
@@ -41,14 +44,13 @@ afterEach(async () => {
 })
 
 /** Boot the dormant composition: a bare `llm-pi-ai` row with no config at all. */
-async function loadComposition(): Promise<{ ctx: Context; settingsPath: string }> {
+async function loadComposition(agentLoop = false): Promise<{ ctx: Context; settingsPath: string }> {
   root = await mkdtemp(join(tmpdir(), 'dsh-pi-composition-'))
   await writeFile(join(root, '.credentials.yaml'), 'version: 1\nrefs:\n  PI_COMPOSITION_KEY: key-from-store\n', { mode: 0o600 })
 
   const configPath = join(root, 'cordis.yml')
   await writeFile(configPath, [
-    '- id: llm',
-    "  name: 'test-llm-service'",
+    ...agentLoop ? [] : ['- id: llm', "  name: 'test-llm-service'"],
     '- id: credentials',
     "  name: '@deepseek-ai/dsh-credentials-local'",
     '  config:',
@@ -63,6 +65,7 @@ async function loadComposition(): Promise<{ ctx: Context; settingsPath: string }
 
   const ctx = new Context()
   context = ctx
+  if (agentLoop) await mountAgentLoopTestDependencies(ctx)
   ctx.baseUrl = pathToFileURL(root).href + '/'
   await ctx.plugin(Loader)
   ctx.loader.builtins.include = Include
@@ -90,6 +93,46 @@ async function loadComposition(): Promise<{ ctx: Context; settingsPath: string }
 }
 
 describe('llm-pi-ai real dormant composition', () => {
+  it('force-compacts and retries a gateway token-limit rejection below the proactive threshold', async () => {
+    const server = await mockServer([
+      { events: textEvents },
+      { status: 400, body: JSON.stringify({
+        type: 'invalid_request_error', code: 'invalid_request_error',
+        message: 'Upstream request failed: [invalid_request_error] Input too long: model limit 1048576 tokens, requested 1123530 tokens',
+      }) },
+      { events: textEvents },
+      { events: textEvents },
+    ])
+    const { ctx, settingsPath } = await loadComposition(true)
+    await writeFile(settingsPath, [
+      '- id: llm-pi-ai', '  config:', '    providers:', '      opencode-go:',
+      '        apiKeyEnv: PI_COMPOSITION_KEY', `        baseURL: ${server.url}`, '',
+    ].join('\n'))
+    await vi.waitFor(() => {
+      expect(ctx.llm.listProviders().map(provider => provider.id)).toEqual(['opencode-go'])
+    }, { timeout: 5000 })
+    await ctx.plugin(TokenMeter)
+    await ctx.plugin(BasicCompactionEngine)
+    const harness = await mountAgentLoopTestHarness(ctx)
+    const agent = await harness.create(brandString<SessionId>('gateway-overflow'), {
+      provider: 'opencode-go', model: 'deepseek-v4.1-flash',
+    })
+    agent.followup(createUserMessage({
+      content: [{ type: 'text', text: 'Earlier task evidence. '.repeat(500) }], source: { kind: 'user' },
+    }))
+    await agent.whenIdle()
+    expect(agent.session.snapshotEvents().filter(event => event.type === 'compaction/summary')).toHaveLength(0)
+    agent.followup(createUserMessage({ content: [{ type: 'text', text: 'Continue.' }], source: { kind: 'user' } }))
+    await agent.whenIdle()
+    const events = agent.session.snapshotEvents()
+    expect(events.filter(event => event.type === 'compaction/summary')).toHaveLength(1)
+    expect(events.findLast(event => event.type === 'turn/end')?.data.reason.kind).toBe('completed')
+    expect(server.requests).toHaveLength(4)
+    expect(JSON.stringify(server.requests[2])).toContain('acting as a compaction engine')
+    expect(JSON.stringify(server.requests[3])).toContain('hello')
+    expect(JSON.stringify(server.requests[3])).not.toContain('Earlier task evidence.')
+  })
+
   it('dispatches header contributors through the Loader-mounted adapter', async () => {
     const server = await mockServer([{ events: textEvents }])
     const { ctx, settingsPath } = await loadComposition()

@@ -130,6 +130,13 @@ const EXCEEDS_MODEL_CONTEXT = new RegExp(
   'i',
 )
 
+/** Gateway input rejection that explicitly reports a model token capacity and requested count. */
+const TOKEN_COUNTED_MODEL_LIMIT = new RegExp(
+  String.raw`\b(?:input|prompt|request)\s+(?:is\s+)?too\s+(?:long|large):\s*`
+  + String.raw`model\s+limit\s+\d+\s+tokens?,\s*requested\s+\d+\s+tokens?\b`,
+  'i',
+)
+
 /**
  * Recognize the context-overflow wording used by OpenAI-compatible providers
  * and library adapters. Adapters pass all available provider code, type, and
@@ -143,6 +150,7 @@ export function isContextWindowExceededError(detail: string): boolean {
     || TOO_LARGE_FOR_CONTEXT.test(detail)
     || /\b(?:input|prompt|request)\s+(?:is\s+)?too\s+(?:long|large)\s+for\s+(?:this|the)\s+model\b/i.test(detail)
     || EXCEEDS_MODEL_CONTEXT.test(detail)
+    || TOKEN_COUNTED_MODEL_LIMIT.test(detail)
 }
 
 /**
